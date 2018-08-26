@@ -1,14 +1,24 @@
 package com.ef.Parser;
 
 import com.ef.Parser.components.LogRecordCSVParser;
+import com.ef.Parser.model.TimeDuration;
+import org.apache.commons.io.IOUtils;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import javax.annotation.Resource;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
+import java.sql.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest
@@ -17,9 +27,98 @@ public class ParserApplicationTests {
 	@Resource
 	LogRecordCSVParser logRecordCSVParser;
 
+	@Value("${spring.datasource.url}")
+	String databaseUrl;
+
+	@Value("${spring.datasource.username}")
+	String username;
+
+	@Value("${spring.datasource.password}")
+	String password;
+
+
 	@Test
-	public void contextLoads() {
-		URL resource = Thread.currentThread().getContextClassLoader().getResource("test.log");
+	public void contextLoads() throws SQLException, IOException {
+		try(Connection connection = clearLogRecordTable()) {
+			Long expected = 525l;
+			loadLogRecords("test.log");
+			Long count = getLogRecordCount(connection);
+			Assert.assertEquals(expected, count);
+		}
+	}
+
+	private Connection clearLogRecordTable() throws IOException, SQLException {
+		String sql;
+		try(InputStream inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream("parser-table.sql")) {
+			sql = IOUtils.toString(inputStream);
+		}
+		Connection connection = DriverManager.getConnection(databaseUrl, username, password);
+		Statement statement = connection.createStatement();
+		statement.execute(sql);
+		statement.close();
+		return connection;
+	}
+
+	private Long getLogRecordCount(Connection connection) throws SQLException {
+		String sql = "SELECT COUNT(1) FROM log_record";
+		Statement statement;
+		statement = connection.createStatement();
+		statement.execute(sql);
+		ResultSet resultSet = statement.getResultSet();
+		Long count = null;
+		while(resultSet.next()) {
+			count = resultSet.getLong(1);
+		}
+		return count;
+	}
+
+	@Test
+	public void testHourlyThreshold() throws SQLException {
+		try(Connection connection = clearLogRecordTable()) {
+			loadLogRecords("test.log");
+			List<String> results = logRecordCSVParser.findThresholdByDuration("2017-01-01 00:00:00.000", TimeDuration.HOURLY, 100l);
+			Assert.assertEquals("Results should be empty for hourly threshold of 100, there are only 8 records", results.size(), 0);
+
+			results = logRecordCSVParser.findThresholdByDuration("2017-01-01 00:00:00.000", TimeDuration.HOURLY, 10l);
+			Assert.assertEquals("Results should have 2 records", results.size(), 2);
+
+			Assert.assertTrue(results.contains("192.168.169.194"));
+			Assert.assertTrue(results.contains("192.168.234.82"));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	@Test
+	public void testStartDateEndDate() {
+		String date = "2017-01-01 00:00:00.000";
+		LocalDateTime startTime = logRecordCSVParser.parseDateTime(date);
+		LocalDateTime endTime = startTime.plusHours(1l);
+		String startDate = DateTimeFormatter.ofPattern("yyyy-dd-MM HH:mm:ss.SSS").format(startTime);
+		String endDate = DateTimeFormatter.ofPattern("yyyy-dd-MM HH:mm:ss.SSS").format(endTime);
+		Assert.assertEquals(date, startDate);
+		Assert.assertEquals("2017-01-01 01:00:00.000", endDate);
+	}
+
+	@Test
+	public void testDailyThreshold() throws SQLException, IOException {
+		try(Connection connection = clearLogRecordTable()) {
+			loadLogRecords("access.log");
+			List<String> results = logRecordCSVParser.findThresholdByDuration("2017-01-01 00:00:00.000", TimeDuration.DAILY, 1000l);
+			Assert.assertEquals("Results should be empty for hourly threshold of 1000, there are only 8 records", results.size(), 0);
+
+			results = logRecordCSVParser.findThresholdByDuration("2017-01-01 00:00:00.000", TimeDuration.DAILY, 500l);
+			Assert.assertEquals("Results should have 15 records", results.size(), 15);
+			// check for the presence of a few of the known IPs that exceed this threshold
+			List<String> ipsToCheck = new ArrayList<String>(){{ add("192.168.162.248"); add("192.168.199.209");
+					add("192.168.102.136"); add("192.168.38.77"); add("192.168.62.176"); }};
+			Assert.assertTrue("Expected IPs missing", results.containsAll(ipsToCheck));
+		}
+
+	}
+
+	private void loadLogRecords(String filename) {
+		URL resource = Thread.currentThread().getContextClassLoader().getResource(filename);
 		logRecordCSVParser.importCSVFile(resource.getPath());
 	}
 

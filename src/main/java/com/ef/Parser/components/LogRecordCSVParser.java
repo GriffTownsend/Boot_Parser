@@ -8,19 +8,17 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.lang3.time.DateFormatUtils;
-import org.apache.commons.lang3.time.DateUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import sun.util.calendar.ZoneInfo;
+import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 
+import javax.annotation.Resource;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.text.ParseException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
@@ -33,7 +31,7 @@ public class LogRecordCSVParser {
 
 	private static final String[] DATE_PATTERNS={DateFormatUtils.ISO_8601_EXTENDED_DATETIME_TIME_ZONE_FORMAT.getPattern(), "yyyy-MM-dd'T'HH:mm:ss'Z'", DateFormatUtils.ISO_8601_EXTENDED_DATETIME_FORMAT.getPattern(), DateFormatUtils.ISO_8601_EXTENDED_DATE_FORMAT.getPattern(), "yyyy-MM-dd", "yyyy-MM-dd HH:mm:ss"};
 
-	@Autowired
+	@Resource
 	private LogRecordRepository recordRepository;
 
 	public void importCSVFile(String pathName) {
@@ -66,13 +64,26 @@ public class LogRecordCSVParser {
 		}
 	}
 
-	public List<String> findThresholdByDuration(String startDate, TimeDuration duration, Integer threshold) {
-		return null;
+	public List<String> findThresholdByDuration(String startDate, TimeDuration duration, Long threshold) {
+		List<String> results = new ArrayList<>();
+		if(org.apache.commons.lang3.StringUtils.isBlank(startDate)) {
+			throw new IllegalArgumentException("Start Date not provided");
+		}
+		Assert.notNull(duration, "Duration cannot be null");
+		Assert.notNull(threshold, "Threshold cannot be null");
+		LocalDateTime start = parseDateTime(startDate);
+		LocalDateTime end = (TimeDuration.DAILY.equals(duration))? start.plusDays(1) : start.plusHours(1);
+		return recordRepository.findThresholdByDuration(Date.from(start.atZone(ZoneId.systemDefault()).toInstant()),
+				Date.from(end.atZone(ZoneId.systemDefault()).toInstant()), threshold);
 	}
 
 	public LocalDateTime parseDateTime(String date) {
 		DateTimeFormatter f = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 		LocalDateTime dateTime = LocalDateTime.from(f.parse(date));
 		return dateTime;
+	}
+
+	public LogRecordRepository getRepository() {
+		return this.recordRepository;
 	}
 }
