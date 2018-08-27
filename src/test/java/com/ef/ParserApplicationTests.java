@@ -1,7 +1,7 @@
-package com.ef.Parser;
+package com.ef;
 
-import com.ef.Parser.components.LogRecordCSVParser;
-import com.ef.Parser.model.TimeDuration;
+import com.ef.components.LogRecordCSVParser;
+import com.ef.model.TimeDuration;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Test;
@@ -117,7 +117,7 @@ public class ParserApplicationTests {
 
 	}
 
-	private void loadLogRecords(String filename) {
+	private void loadLogRecords(String filename) throws SQLException {
 		URL resource = Thread.currentThread().getContextClassLoader().getResource(filename);
 		logRecordCSVParser.importCSVFile(resource.getPath());
 	}

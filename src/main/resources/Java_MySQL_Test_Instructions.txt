@@ -58,7 +58,7 @@ Deliverables
 
 (1) Java program that can be run from command line
 	
-    java -cp "parser.jar" com.ef.Parser --accesslog=/path/to/file --startDate=2017-01-01.13:00:00 --duration=hourly --threshold=100 
+    java -cp "parser.jar" com.ef.Parser --accesslog=/path/to/file --startDate=2017-01-01.13:00:00 --duration=hourly --threshold=100
 
 (2) Source Code for the Java program
 

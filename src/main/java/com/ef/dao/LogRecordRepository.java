@@ -1,6 +1,6 @@
-package com.ef.Parser.dao;
+package com.ef.dao;
 
-import com.ef.Parser.model.LogRecord;
+import com.ef.model.LogRecord;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;

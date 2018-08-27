@@ -1,22 +1,27 @@
-package com.ef.Parser.components;
+package com.ef.components;
 
-import com.ef.Parser.dao.LogRecordRepository;
-import com.ef.Parser.model.LogRecord;
-import com.ef.Parser.model.TimeDuration;
+import com.ef.model.LogRecord;
+import com.ef.model.TimeDuration;
+import com.ef.dao.LogRecordRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.lang3.time.DateFormatUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
 
 import javax.annotation.Resource;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -34,8 +39,19 @@ public class LogRecordCSVParser {
 	@Resource
 	private LogRecordRepository recordRepository;
 
-	public void importCSVFile(String pathName) {
-		try (BufferedReader reader = Files.newBufferedReader(Paths.get(pathName));
+	@Value("${spring.datasource.url}")
+	String databaseUrl;
+
+	@Value("${spring.datasource.username}")
+	String username;
+
+	@Value("${spring.datasource.password}")
+	String password;
+
+	public void importCSVFile(String pathName) throws SQLException {
+		verifyDatabase();
+		InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream(pathName);
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
 			 CSVParser parser = new CSVParser(reader, CSVFormat.DEFAULT
 			 	.withHeader("date", "ipAddress", "request", "status","userAgent").withSkipHeaderRecord(false).withTrim().withDelimiter('|')
 			 ))
@@ -64,14 +80,27 @@ public class LogRecordCSVParser {
 		}
 	}
 
+	private void verifyDatabase() throws SQLException {
+			String sql="DELETE FROM log_record";
+			Connection connection = DriverManager.getConnection(databaseUrl, username, password);
+			Statement statement = connection.createStatement();
+			statement.execute(sql);
+			statement.close();
+			connection.close();
+	}
+
 	public List<String> findThresholdByDuration(String startDate, TimeDuration duration, Long threshold) {
 		List<String> results = new ArrayList<>();
 		if(org.apache.commons.lang3.StringUtils.isBlank(startDate)) {
 			throw new IllegalArgumentException("Start Date not provided");
 		}
+		LocalDateTime start = parseDateTime(startDate);
 		Assert.notNull(duration, "Duration cannot be null");
 		Assert.notNull(threshold, "Threshold cannot be null");
-		LocalDateTime start = parseDateTime(startDate);
+		return findThreshold(start, duration, threshold);
+	}
+
+	public List<String> findThreshold(LocalDateTime start, TimeDuration duration, Long threshold) {
 		LocalDateTime end = (TimeDuration.DAILY.equals(duration))? start.plusDays(1) : start.plusHours(1);
 		return recordRepository.findThresholdByDuration(Date.from(start.atZone(ZoneId.systemDefault()).toInstant()),
 				Date.from(end.atZone(ZoneId.systemDefault()).toInstant()), threshold);

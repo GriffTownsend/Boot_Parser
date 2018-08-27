@@ -1,4 +1,4 @@
-package com.ef.Parser.model;
+package com.ef.model;
 
 import lombok.Data;
 
