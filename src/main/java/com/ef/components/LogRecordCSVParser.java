@@ -34,8 +34,6 @@ import java.util.List;
 @Component
 public class LogRecordCSVParser {
 
-	private static final String[] DATE_PATTERNS={DateFormatUtils.ISO_8601_EXTENDED_DATETIME_TIME_ZONE_FORMAT.getPattern(), "yyyy-MM-dd'T'HH:mm:ss'Z'", DateFormatUtils.ISO_8601_EXTENDED_DATETIME_FORMAT.getPattern(), DateFormatUtils.ISO_8601_EXTENDED_DATE_FORMAT.getPattern(), "yyyy-MM-dd", "yyyy-MM-dd HH:mm:ss"};
-
 	@Resource
 	private LogRecordRepository recordRepository;
 
@@ -50,10 +48,17 @@ public class LogRecordCSVParser {
 
 	public void importCSVFile(String pathName) throws SQLException {
 		verifyDatabase();
-		InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream(pathName);
+		try(InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream(pathName)) {
+			importCSVFile(is);
+		} catch (IOException e) {
+			log.error("IO Exception accessing CSV file", e);
+		}
+	}
+
+	public void importCSVFile(InputStream is) throws IOException {
 		try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
 			 CSVParser parser = new CSVParser(reader, CSVFormat.DEFAULT
-			 	.withHeader("date", "ipAddress", "request", "status","userAgent").withSkipHeaderRecord(false).withTrim().withDelimiter('|')
+					 .withHeader("date", "ipAddress", "request", "status","userAgent").withSkipHeaderRecord(false).withTrim().withDelimiter('|')
 			 ))
 		{
 			Iterator<CSVRecord> records = parser.iterator();
@@ -75,8 +80,6 @@ public class LogRecordCSVParser {
 			if(logRecords.size() > 0) {
 				recordRepository.saveAll(logRecords);
 			}
-		} catch (IOException e) {
-			e.printStackTrace();
 		}
 	}
 

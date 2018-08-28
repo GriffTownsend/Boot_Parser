@@ -117,9 +117,10 @@ public class ParserApplicationTests {
 
 	}
 
-	private void loadLogRecords(String filename) throws SQLException {
-		URL resource = Thread.currentThread().getContextClassLoader().getResource(filename);
-		logRecordCSVParser.importCSVFile(resource.getPath());
+	private void loadLogRecords(String filename) throws SQLException, IOException {
+		try(InputStream is =  getClass().getClassLoader().getResourceAsStream(filename)) {
+			logRecordCSVParser.importCSVFile(is);
+		}
 	}
 
 }

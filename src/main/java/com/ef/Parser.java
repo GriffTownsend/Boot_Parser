@@ -1,24 +1,28 @@
 package com.ef;
 
-import com.ef.model.TimeDuration;
 import com.ef.components.LogRecordCSVParser;
+import com.ef.model.TimeDuration;
+import com.ef.utils.DateFormatUtils;
 import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.Banner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
+
 @SpringBootApplication
 public class Parser {
 
+	@Autowired
 	private static LogRecordCSVParser logRecordCSVParser;
 
 	public static void main(String[] args) {
 		SpringApplication app = new SpringApplication(Parser.class);
+		app.setHeadless(true);
 		app.setBannerMode(Banner.Mode.OFF);
 		ConfigurableApplicationContext context = app.run(args);
 
@@ -46,8 +50,7 @@ public class Parser {
 			{
 				commandLine = parser.parse(options, args);
 				String startDateArg = commandLine.getOptionValue("startDate");
-				DateTimeFormatter f = DateTimeFormatter.ofPattern("yyyy-MM-dd.HH:mm:ss.SSS");
-				LocalDateTime dateTime = LocalDateTime.from(f.parse(startDateArg));
+				LocalDateTime dateTime = DateFormatUtils.toParsedDateTime(startDateArg);
 				TimeDuration durationArg = TimeDuration.valueOf(commandLine.getOptionValue("duration").toUpperCase());
 				Long thresholdArg = Long.valueOf(commandLine.getOptionValue("threshold"));
 				String accessLog = commandLine.getOptionValue("accesslog");
@@ -56,7 +59,7 @@ public class Parser {
 				}
 				System.out.println("Starting import of " + accessLog);
 				logRecordCSVParser.importCSVFile(accessLog);
-				System.out.println("Finsihed import of log files");
+				System.out.println("Finished import of log files");
 				List<String> results = logRecordCSVParser.findThreshold(dateTime, durationArg, thresholdArg);
 				if(results == null) {
 					throw new IllegalStateException("Results should not be null");
@@ -71,7 +74,7 @@ public class Parser {
 				System.exit(1);
 			}
 
-		}catch (Exception ex) {
+		} catch (Exception ex) {
 			System.out.println(ex.getMessage());
 			System.exit(1);
 		}
